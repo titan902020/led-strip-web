@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Лента</title>
+<script>
+// Показывает любую ошибку прямо на экране (для отладки в Bluefy).
+window.addEventListener('error', function (e) {
+  var d = document.createElement('pre');
+  d.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99;margin:0;padding:10px;background:#900;color:#fff;font:13px monospace;white-space:pre-wrap';
+  d.textContent = 'ОШИБКА: ' + e.message + ' (строка ' + e.lineno + ')';
+  (document.body || document.documentElement).appendChild(d);
+});
+</script>
+<style>
+  html{background:#0e0f13}
+  :root{--bg:#0e0f13;--card:#1a1c23;--line:#2a2d37;--text:#eceef3;--mute:#8b90a0;--acc:#4f8cff}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 -apple-system,system-ui,sans-serif;
+       padding:16px;padding-bottom:calc(24px + env(safe-area-inset-bottom));max-width:480px;margin-inline:auto}
+  h1{font-size:20px;margin:4px 0 14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  button{background:var(--line);color:var(--text);border:0;border-radius:10px;padding:12px 14px;font-size:16px;flex:1;min-width:0}
+  button.primary{background:var(--acc);color:#fff;font-weight:600}
+  button.small{padding:8px 10px;font-size:14px;flex:0 0 auto}
+  button.on{outline:2px solid var(--acc)}
+  .status{font-size:14px;color:var(--mute);margin-top:8px;word-break:break-word}
+  .status.ok{color:#5ad17a}.status.err{color:#ff7a7a}
+  label{display:block;font-size:13px;color:var(--mute);margin:2px 0 8px}
+  input[type=range]{width:100%;height:32px}
+  input[type=color]{width:100%;height:48px;border:0;border-radius:10px;background:none;padding:0}
+  select{width:100%;padding:12px;border-radius:10px;background:var(--line);color:var(--text);border:0;font-size:16px}
+  .hint{font-size:13px;color:var(--mute);margin-top:8px}
+  .off{opacity:.45;pointer-events:none}
+  .head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .head label{margin:0}
+  .sw{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:12px}
+  .sw button{position:relative;height:44px;padding:0;border-radius:12px;border:2px solid rgba(255,255,255,.12)}
+  .sw.edit button::after{content:"×";position:absolute;inset:0;display:grid;place-items:center;font-size:26px;
+       color:#fff;text-shadow:0 0 4px #000,0 0 2px #000;background:rgba(0,0,0,.25);border-radius:10px}
+  .empty{color:var(--mute);font-size:14px;grid-column:1/-1;padding:6px 0}
+  .band{padding:10px 0;border-top:1px solid var(--line)}
+  .band:first-of-type{border-top:0}
+  .band .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .band .name{font-size:15px}
+  .band .ctl{display:flex;gap:8px;align-items:center}
+  .band input[type=color]{height:40px;flex:1}
+  .band.none input[type=color]{opacity:.25;pointer-events:none}
+  .band.none .name{color:var(--mute)}
+</style>
+</head>
+<body>
+<h1>Светодиодная лента</h1>
+
+<div class="card">
+  <div class="row"><button class="primary" id="connect">Подключить ленту</button></div>
+  <div class="status" id="status">Закройте приложение duoCo Strip и нажмите кнопку.</div>
+</div>
+
+<div id="panel" class="off">
+  <div class="card">
+    <div class="row">
+      <button id="on">Включить</button>
+      <button id="off">Выключить</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="head">
+      <label>Избранные цвета</label>
+      <button class="small" id="editFav">Изменить</button>
+    </div>
+    <div class="sw" id="swatches"></div>
+    <label>Выбрать любой цвет</label>
+    <input type="color" id="picker" value="#ff0078">
+    <div class="row" style="margin-top:10px">
+      <button id="addFav">★ Добавить в избранное</button>
+      <button id="resetFav" class="small">Сбросить палитру</button>
+    </div>
+    <label style="margin-top:14px">Яркость: <span id="bval">100</span>%</label>
+    <input type="range" id="bright" min="1" max="100" value="100">
+  </div>
+
+  <div class="card">
+    <label>Эффект</label>
+    <select id="effect"></select>
+    <label style="margin-top:14px">Скорость: <span id="sval">50</span>%</label>
+    <input type="range" id="speed" min="0" max="100" value="50">
+    <div class="row" style="margin-top:8px"><button id="effGo">Запустить эффект</button></div>
+  </div>
+
+  <div class="card">
+    <div class="head"><label>Режим «под звук» (микрофон телефона)</label></div>
+    <div id="bands"></div>
+    <div class="hint">У каждой полосы свой цвет. Нажмите «Убрать», чтобы полоса не светилась. Если оставить одну полосу, её цвет будет реагировать на весь звук сразу.</div>
+    <div class="row" style="margin-top:12px"><button id="mic">Включить режим</button></div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const SERVICES = [0xfff0, 0xffe0, 0xffd0, 0xffd5, 0xffb0, 0xfee0, 0xae00];
+const PREFER = ['fff3', 'ffe1', 'ffd9', 'ffd5'];
+const DEFAULT_FAV = ['#ff0000','#ff0078','#ff5000','#ffc800','#00ff00','#00ffff','#0000ff','#a000ff','#ff8c28','#ffffff'];
+const DEFAULT_BANDS = ['#ff0078', '#ff0000', '#ffc800'];
+const BAND_DEF = [
+  {name: 'Басы (низкие)', lo: 30, hi: 200},
+  {name: 'Средние', lo: 200, hi: 2000},
+  {name: 'Высокие', lo: 2000, hi: 12000}
+];
+const KEY = 'ledstrip.v1';
+
+let dev = null, chr = null, busy = false, pending = null, micOn = false, editMode = false;
+let state = {fav: DEFAULT_FAV.slice(), bands: DEFAULT_BANDS.slice()};
+
+try {
+  const s = JSON.parse(localStorage.getItem(KEY) || 'null');
+  if (s && Array.isArray(s.fav) && Array.isArray(s.bands) && s.bands.length === 3) state = s;
+} catch (e) {}
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} };
+
+const pkt = (...b) => new Uint8Array([0x7e, 0x00, ...b, 0xef]);
+const hex2rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+function setStatus(t, cls = '') { $('status').textContent = t; $('status').className = 'status ' + cls; }
+
+// Последняя команда важнее старых: очередь не копится, ползунки не тормозят.
+async function send(p) {
+  if (!chr) return;
+  if (busy) { pending = p; return; }
+  busy = true;
+  try {
+    do {
+      const cur = p; pending = null;
+      if (chr.writeValueWithoutResponse) await chr.writeValueWithoutResponse(cur);
+      else await chr.writeValue(cur);
+      p = pending;
+    } while (p);
+  } catch (e) { setStatus('Ошибка отправки: ' + e.message, 'err'); }
+  busy = false;
+}
+const turnOn = () => send(pkt(0x04, 0xf0, 0x00, 0x01, 0xff, 0x00));
+const turnOff = () => send(pkt(0x04, 0x00, 0x00, 0x00, 0xff, 0x00));
+const setRGB = (r, g, b) => send(pkt(0x05, 0x03, r, g, b, 0x00));
+
+async function connect() {
+  if (!navigator.bluetooth) {
+    setStatus('Этот браузер не поддерживает Bluetooth. Откройте страницу в Bluefy.', 'err'); return;
+  }
+  try {
+    setStatus('Выбор устройства…');
+    dev = await navigator.bluetooth.requestDevice({
+      filters: [{namePrefix: 'BLEDDM'}, {namePrefix: 'ELK-BLE'}, {namePrefix: 'BLEDOM'}, {namePrefix: 'MELK'}],
+      optionalServices: SERVICES
+    });
+    dev.addEventListener('gattserverdisconnected', () => {
+      stopMic(); chr = null; $('panel').classList.add('off');
+      setStatus('Связь потеряна. Нажмите «Подключить ленту».', 'err');
+    });
+    setStatus('Подключение…');
+    const server = await dev.gatt.connect();
+    const found = [];
+    for (const s of await server.getPrimaryServices())
+      for (const c of await s.getCharacteristics())
+        if (c.properties.write || c.properties.writeWithoutResponse) found.push(c);
+    if (!found.length) throw new Error('не найден канал для записи');
+    chr = PREFER.map(p => found.find(c => c.uuid.includes(p))).find(Boolean) || found[0];
+    $('panel').classList.remove('off');
+    setStatus('Подключено: ' + dev.name, 'ok');
+    await turnOn();
+  } catch (e) { setStatus('Не вышло: ' + e.message, 'err'); }
+}
+
+// ---------- Избранные цвета ----------
+function renderFav() {
+  const box = $('swatches');
+  box.innerHTML = ''; box.classList.toggle('edit', editMode);
+  if (!state.fav.length) {
+    const d = document.createElement('div'); d.className = 'empty';
+    d.textContent = 'Палитра пуста. Выберите цвет ниже и нажмите «Добавить в избранное».';
+    box.appendChild(d);
+  }
+  state.fav.forEach((c, i) => {
+    const b = document.createElement('button');
+    b.style.background = c; b.setAttribute('aria-label', c);
+    b.onclick = () => {
+      if (editMode) { state.fav.splice(i, 1); save(); renderFav(); return; }
+      stopMic(); $('picker').value = c; turnOn(); setRGB(...hex2rgb(c));
+    };
+    box.appendChild(b);
+  });
+  $('editFav').textContent = editMode ? 'Готово' : 'Изменить';
+  $('editFav').classList.toggle('on', editMode);
+}
+$('editFav').onclick = () => { editMode = !editMode; renderFav(); };
+$('addFav').onclick = () => {
+  const c = $('picker').value;
+  if (!state.fav.includes(c)) { state.fav.push(c); save(); }
+  renderFav();
+};
+$('resetFav').onclick = () => {
+  if (confirm('Вернуть стандартную палитру?')) { state.fav = DEFAULT_FAV.slice(); save(); renderFav(); }
+};
+
+$('connect').onclick = connect;
+$('on').onclick = turnOn;
+$('off').onclick = () => { stopMic(); turnOff(); };
+$('picker').oninput = e => { stopMic(); setRGB(...hex2rgb(e.target.value)); };
+$('bright').oninput = e => { $('bval').textContent = e.target.value; send(pkt(0x01, +e.target.value, 0, 0, 0, 0)); };
+$('speed').oninput = e => { $('sval').textContent = e.target.value; send(pkt(0x02, +e.target.value, 0, 0, 0, 0)); };
+for (let i = 0; i <= 20; i++) $('effect').add(new Option('Эффект ' + (i + 1), i));
+$('effGo').onclick = () => {
+  stopMic(); turnOn();
+  send(pkt(0x03, 0x87 + +$('effect').value, 0x03, 0, 0, 0));
+  send(pkt(0x02, +$('speed').value, 0, 0, 0, 0));
+};
+
+// ---------- Цвета полос для режима «под звук» ----------
+function renderBands() {
+  const box = $('bands'); box.innerHTML = '';
+  BAND_DEF.forEach((def, i) => {
+    const c = state.bands[i];
+    const d = document.createElement('div'); d.className = 'band' + (c ? '' : ' none');
+    d.innerHTML = '<div class="top"><span class="name"></span><div class="ctl"></div></div>' +
+                  '<div class="ctl"><input type="color"><button class="small take">Взять выбранный</button></div>';
+    d.querySelector('.name').textContent = def.name + (c ? '' : ' — пусто');
+    const input = d.querySelector('input'); input.value = c || '#ffffff';
+    input.oninput = () => { state.bands[i] = input.value; save(); };
+    input.onchange = () => { renderBands(); };
+    const toggle = document.createElement('button'); toggle.className = 'small';
+    toggle.textContent = c ? 'Убрать' : 'Добавить';
+    toggle.onclick = () => { state.bands[i] = c ? null : ($('picker').value); save(); renderBands(); };
+    d.querySelector('.top .ctl').appendChild(toggle);
+    d.querySelector('.take').onclick = () => { state.bands[i] = $('picker').value; save(); renderBands(); };
+    box.appendChild(d);
+  });
+}
+
+// ---------- Режим «под звук» ----------
+let ac, stream, timer;
+const peak = [1e-6, 1e-6, 1e-6, 1e-6], level = [0, 0, 0, 0];
+async function startMic() {
+  if (!state.bands.some(Boolean)) { setStatus('Задайте цвет хотя бы одной полосе.', 'err'); return; }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    setStatus('Микрофон здесь недоступен: странице нужен https.', 'err'); return;
+  }
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({audio: {echoCancellation: false, noiseSuppression: false, autoGainControl: false}});
+  } catch (e) { setStatus('Нет доступа к микрофону: ' + e.message, 'err'); return; }
+  ac = new (window.AudioContext || window.webkitAudioContext)();
+  const an = ac.createAnalyser(); an.fftSize = 2048; an.smoothingTimeConstant = 0.5;
+  ac.createMediaStreamSource(stream).connect(an);
+  const buf = new Uint8Array(an.frequencyBinCount), hz = ac.sampleRate / an.fftSize;
+  const ranges = [...BAND_DEF.map(b => [b.lo, b.hi]), [30, 12000]]; // 4-я — весь звук сразу
+  turnOn(); micOn = true; $('mic').textContent = 'Выключить режим'; $('mic').classList.add('on');
+  timer = setInterval(() => {
+    an.getByteFrequencyData(buf);
+    ranges.forEach(([lo, hi], i) => {
+      let s = 0; for (let k = Math.floor(lo / hz); k < hi / hz && k < buf.length; k++) s += buf[k];
+      peak[i] = Math.max(s, peak[i] * 0.995, 1e-6);
+      const n = Math.pow(Math.min(s / peak[i], 1), 2);
+      level[i] = n > level[i] ? n : level[i] * 0.8 + n * 0.2;
+    });
+    const active = [0, 1, 2].filter(i => state.bands[i]);
+    if (!active.length) return setRGB(0, 0, 0);
+    let rgb;
+    if (active.length === 1) {                 // один цвет — на весь звук
+      const c = hex2rgb(state.bands[active[0]]), k = level[3];
+      rgb = c.map(v => Math.round(v * k));
+    } else {                                   // несколько — каждая полоса своим цветом
+      const tot = active.reduce((a, i) => a + level[i], 0), mx = Math.max(...active.map(i => level[i]));
+      if (tot < 1e-3) return setRGB(0, 0, 0);
+      rgb = [0, 1, 2].map(k => Math.round(active.reduce((a, i) => a + level[i] * hex2rgb(state.bands[i])[k], 0) / tot * mx));
+    }
+    setRGB(...rgb);
+  }, 70);
+}
+function stopMic() {
+  if (!micOn) return;
+  micOn = false; clearInterval(timer);
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  if (ac) ac.close();
+  $('mic').textContent = 'Включить режим'; $('mic').classList.remove('on');
+}
+$('mic').onclick = () => micOn ? stopMic() : startMic();
+
+renderFav(); renderBands();
+</script>
+</body>
+</html>
