@@ -18,7 +18,7 @@ window.addEventListener('error', function (e) {
   :root{--bg:#0e0f13;--card:#1a1c23;--line:#2a2d37;--text:#eceef3;--mute:#8b90a0;--acc:#4f8cff}
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 -apple-system,system-ui,sans-serif;
-       padding:16px;padding-bottom:calc(24px + env(safe-area-inset-bottom));max-width:480px;margin-inline:auto}
+       padding:16px;padding-bottom:calc(24px + env(safe-area-inset-bottom));max-width:1100px;margin-inline:auto}
   h1{font-size:20px;margin:4px 0 14px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
   .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -49,6 +49,24 @@ window.addEventListener('error', function (e) {
   .band input[type=color]{height:40px;flex:1}
   .band.none input[type=color]{opacity:.25;pointer-events:none}
   .band.none .name{color:var(--mute)}
+  #panel{display:grid;grid-template-columns:1fr;gap:0 16px;align-items:start}
+  #panel .full{grid-column:1/-1}
+  .fx{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:10px 0}
+  .fx button{text-align:left;padding:10px 12px;display:flex;flex-direction:column;gap:4px;align-items:flex-start;border:2px solid transparent}
+  .fx button.on{border-color:var(--acc);outline:0;background:#232838}
+  .fx .n{font-size:15px;font-weight:600}
+  .fx .d{font-size:12px;color:var(--mute);line-height:1.3}
+  .fx .dots{display:flex;gap:4px}.fx .dots i{width:14px;height:14px;border-radius:50%;display:block;border:1px solid rgba(255,255,255,.2)}
+  .two{display:grid;grid-template-columns:1fr;gap:0 24px}
+  @media(min-width:760px){
+    body{padding:28px 32px}
+    h1{font-size:26px;margin-bottom:20px}
+    #panel{grid-template-columns:1fr 1fr}
+    .fx{grid-template-columns:repeat(3,1fr)}
+    .two{grid-template-columns:1fr 1fr}
+    button:hover{filter:brightness(1.15);cursor:pointer}
+  }
+  @media(min-width:1050px){.fx{grid-template-columns:repeat(4,1fr)}}
 </style>
 </head>
 <body>
@@ -61,7 +79,7 @@ window.addEventListener('error', function (e) {
 </div>
 
 <div id="panel" class="off">
-  <div class="card">
+  <div class="card full">
     <div class="row">
       <button id="on">Включить</button>
       <button id="off">Выключить</button>
@@ -84,14 +102,13 @@ window.addEventListener('error', function (e) {
     <input type="range" id="bright" min="1" max="100" value="100">
   </div>
 
-  <div class="card">
-    <label>Эффект</label>
-    <select id="effect"></select>
-    <label style="margin-top:14px">Скорость: <span id="sval">50</span>%</label>
+  <div class="card full" id="fxcard">
+    <div class="head"><label>Встроенные эффекты ленты (нажмите, чтобы запустить)</label></div>
+    <div class="fx" id="fx"></div>
+    <label>Скорость: <span id="sval">50</span>%</label>
     <input type="range" id="speed" min="0" max="100" value="50">
-    <div class="row" style="margin-top:8px"><button id="effGo">Запустить эффект</button></div>
+    <div class="hint">Названия и описания взяты из открытого описания протокола таких лент, у вашей модели порядок может отличаться. Если эффект не совпал с описанием, это нормально.</div>
   </div>
-
   <div class="card">
     <div class="head"><label>Режим «под звук» (микрофон телефона)</label></div>
     <label>Как реагировать</label>
@@ -263,7 +280,6 @@ $('off').onclick = () => { stopMic(); turnOff(); };
 $('picker').oninput = e => { stopMic(); setRGB(...hex2rgb(e.target.value)); };
 $('bright').oninput = e => { $('bval').textContent = e.target.value; send(pkt(0x01, +e.target.value, 0, 0, 0, 0)); };
 $('speed').oninput = e => { $('sval').textContent = e.target.value; send(pkt(0x02, +e.target.value, 0, 0, 0, 0)); };
-for (let i = 0; i <= 20; i++) $('effect').add(new Option('Эффект ' + (i + 1), i));
 // Команды по порядку: send() оставляет только последнюю, поэтому здесь ждём каждую.
 async function sendSeq(...ps) {
   for (const p of ps) {
@@ -273,12 +289,47 @@ async function sendSeq(...ps) {
     await new Promise(r => setTimeout(r, 60));
   }
 }
-$('effGo').onclick = () => {
-  stopMic();
-  sendSeq(pkt(0x04, 0xf0, 0x00, 0x01, 0xff, 0x00),
-          pkt(0x03, 0x87 + +$('effect').value, 0x03, 0, 0, 0),
-          pkt(0x02, +$('speed').value, 0, 0, 0, 0));
-};
+const R='#ff0000',G='#00ff00',B='#0000ff',Y='#ffff00',C='#00ffff',M='#ff00ff',W='#ffffff';
+const ALL=[R,G,B,Y,C,M,W];
+const EFFECTS = [
+  ['Прыжки RGB', 'Резко меняет красный, зелёный, синий', [R,G,B]],
+  ['Прыжки 7 цветов', 'Резкая смена всех семи цветов', ALL],
+  ['Плавный RGB', 'Плавный переход красный, зелёный, синий', [R,G,B]],
+  ['Плавные 7 цветов', 'Плавный переход по всем семи цветам', ALL],
+  ['Дыхание красный', 'Красный плавно гаснет и загорается', [R]],
+  ['Дыхание зелёный', 'Зелёный плавно гаснет и загорается', [G]],
+  ['Дыхание синий', 'Синий плавно гаснет и загорается', [B]],
+  ['Дыхание жёлтый', 'Жёлтый плавно гаснет и загорается', [Y]],
+  ['Дыхание голубой', 'Голубой плавно гаснет и загорается', [C]],
+  ['Дыхание фиолетовый', 'Фиолетовый плавно гаснет и загорается', [M]],
+  ['Дыхание белый', 'Белый плавно гаснет и загорается', [W]],
+  ['Красный ↔ зелёный', 'Плавно перетекает между двумя цветами', [R,G]],
+  ['Красный ↔ синий', 'Плавно перетекает между двумя цветами', [R,B]],
+  ['Зелёный ↔ синий', 'Плавно перетекает между двумя цветами', [G,B]],
+  ['Мигание 7 цветов', 'Быстро мигает всеми семью цветами', ALL],
+  ['Мигание красный', 'Резко вспыхивает и гаснет', [R]],
+  ['Мигание зелёный', 'Резко вспыхивает и гаснет', [G]],
+  ['Мигание синий', 'Резко вспыхивает и гаснет', [B]],
+  ['Мигание жёлтый', 'Резко вспыхивает и гаснет', [Y]],
+  ['Мигание голубой', 'Резко вспыхивает и гаснет', [C]],
+  ['Мигание фиолетовый', 'Резко вспыхивает и гаснет', [M]],
+  ['Мигание белый', 'Резко вспыхивает и гаснет', [W]]
+];
+let curFx = -1;
+EFFECTS.forEach(([name, desc, cols], i) => {
+  const b = document.createElement('button');
+  b.innerHTML = '<div class="dots"></div><span class="n"></span><span class="d"></span>';
+  b.querySelector('.n').textContent = name; b.querySelector('.d').textContent = desc;
+  cols.forEach(c => { const d = document.createElement('i'); d.style.background = c; b.querySelector('.dots').appendChild(d); });
+  b.onclick = () => {
+    stopMic(); curFx = i;
+    document.querySelectorAll('#fx button').forEach((x, k) => x.classList.toggle('on', k === i));
+    sendSeq(pkt(0x04, 0xf0, 0x00, 0x01, 0xff, 0x00),
+            pkt(0x03, 0x87 + i, 0x03, 0, 0, 0),
+            pkt(0x02, +$('speed').value, 0, 0, 0, 0));
+  };
+  $('fx').appendChild(b);
+});
 
 // ---------- Цвета полос для режима «под звук» ----------
 function renderBands() {
