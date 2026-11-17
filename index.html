@@ -94,6 +94,8 @@ window.addEventListener('error', function (e) {
 
   <div class="card">
     <div class="head"><label>Режим «под звук» (микрофон телефона)</label></div>
+    <div class="hint" style="margin:0 0 8px">Готовые идеи (басы / средние / высокие):</div>
+    <div class="row" id="presets" style="flex-wrap:wrap;margin-bottom:12px"></div>
     <div id="bands"></div>
     <div class="hint">У каждой полосы свой цвет. Нажмите «Убрать», чтобы полоса не светилась. Если оставить одну полосу, её цвет будет реагировать на весь звук сразу.</div>
     <div class="row" style="margin-top:12px"><button id="mic">Включить режим</button></div>
@@ -241,6 +243,22 @@ function renderBands() {
     box.appendChild(d);
   });
 }
+
+const PRESETS = [
+  ['Розовый · красный · жёлтый', ['#ff0078', '#ff0000', '#ffc800']],
+  ['Огонь', ['#ff0000', '#ff5000', '#ffc800']],
+  ['Контраст', ['#a000ff', '#00ffff', '#ffc800']],
+  ['Холод', ['#0000ff', '#00b4ff', '#ffffff']],
+  ['Неон', ['#ff0078', '#00ffff', '#a000ff']],
+  ['Закат', ['#a000ff', '#ff0078', '#ff8c28']],
+  ['Один розовый', ['#ff0078', null, null]],
+  ['Один фиолетовый', ['#a000ff', null, null]]
+];
+PRESETS.forEach(([name, cols]) => {
+  const b = document.createElement('button'); b.className = 'small'; b.textContent = name;
+  b.onclick = () => { state.bands = cols.slice(); save(); renderBands(); };
+  $('presets').appendChild(b);
+});
 
 // ---------- Режим «под звук» ----------
 let ac, stream, timer;
