@@ -14,120 +14,195 @@ window.addEventListener('error', function (e) {
 });
 </script>
 <style>
-  html{background:#0e0f13}
-  :root{--bg:#0e0f13;--card:#1a1c23;--line:#2a2d37;--text:#eceef3;--mute:#8b90a0;--acc:#4f8cff}
-  *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 -apple-system,system-ui,sans-serif;
-       padding:16px;padding-bottom:calc(24px + env(safe-area-inset-bottom));max-width:1100px;margin-inline:auto}
-  h1{font-size:20px;margin:4px 0 14px}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+  html{background:#0b0c10}
+  :root{--bg:#0b0c10;--card:rgba(26,28,36,.72);--line:rgba(255,255,255,.09);--text:#eceef3;--mute:#8b90a0;--acc:#4f8cff;--glow:rgb(255,0,120)}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.35 -apple-system,system-ui,sans-serif;overflow:hidden}
+  /* живое свечение за интерфейсом: цвет повторяет цвет ленты */
+  .glow{position:fixed;inset:-20% -10% auto -10%;height:70%;z-index:0;pointer-events:none;
+        background:radial-gradient(ellipse at 50% 0%,var(--glow) 0%,transparent 65%);opacity:.45;
+        transition:background .25s linear,opacity .4s}
+  .glow.fxrun{animation:hue 6s linear infinite}
+  .glow.off{opacity:.12}
+  @keyframes hue{to{filter:hue-rotate(360deg)}}
+  .app{position:relative;z-index:1;height:100dvh;max-width:1000px;margin:0 auto;display:flex;flex-direction:column;
+       padding:max(12px,env(safe-area-inset-top)) 14px max(12px,env(safe-area-inset-bottom))}
+  header{display:flex;align-items:center;gap:10px}
+  h1{font-size:18px;margin:0;font-weight:700;letter-spacing:.2px;flex:1}
+  .chip{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:999px;
+        padding:6px 12px;font-size:13px;color:var(--mute);max-width:100%;backdrop-filter:blur(10px)}
+  .chip .dot{width:9px;height:9px;border-radius:50%;background:#666;flex:none}
+  .chip.ok .dot{background:#5ad17a;box-shadow:0 0 8px #5ad17a;animation:pulse 2s infinite}
+  .chip.err .dot{background:#ff7a7a}
+  .chip.ok{color:#bfe9ca}.chip.err{color:#ffb0b0}
+  @keyframes pulse{50%{opacity:.4}}
+  button{font:inherit;color:var(--text);background:rgba(255,255,255,.08);border:1px solid var(--line);border-radius:12px;
+         padding:10px 14px;cursor:pointer;transition:transform .12s,background .2s,box-shadow .2s,border-color .2s}
+  button:hover{background:rgba(255,255,255,.14)}
+  button:active{transform:scale(.96)}
+  button.primary{background:var(--acc);border-color:transparent;color:#fff;font-weight:600}
+  button.small{padding:6px 10px;font-size:13px}
+  button.on{border-color:var(--acc);box-shadow:0 0 0 2px rgba(79,140,255,.35)}
+  .pw{display:flex;gap:6px}
+  .pw button{padding:7px 12px;font-size:13px}
+  .connect{display:flex;align-items:center;gap:8px;margin-top:8px}
+  .chip span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  details{margin-top:8px}
+  summary{cursor:pointer;color:var(--mute);font-size:13px;list-style:none;padding:6px 0;user-select:none}
+  summary::-webkit-details-marker{display:none}
+  summary::before{content:"▸ ";display:inline-block;transition:transform .2s}
+  details[open]>summary::before{transform:rotate(90deg)}
+  details[open]>.more{animation:drop .25s ease}
+  @keyframes drop{from{opacity:0;transform:translateY(-6px)}}
+  #panel{flex:1;min-height:0;display:flex;flex-direction:column;margin-top:10px;transition:opacity .3s}
+  #panel.off{opacity:.4;pointer-events:none}
+  .tabs{position:relative;display:grid;grid-template-columns:repeat(3,1fr);background:var(--card);border:1px solid var(--line);
+        border-radius:14px;padding:4px;backdrop-filter:blur(10px)}
+  .tabs button{background:none;border:0;border-radius:10px;position:relative;z-index:1;padding:9px 4px;color:var(--mute)}
+  .tabs button.act{color:#fff;font-weight:600}
+  .tabs .ind{position:absolute;top:4px;bottom:4px;left:4px;width:calc((100% - 8px)/3);border-radius:10px;
+             background:linear-gradient(135deg,rgba(79,140,255,.9),rgba(160,0,255,.8));transition:transform .3s cubic-bezier(.3,1.3,.5,1)}
+  .stage{flex:1;min-height:0;overflow:auto;margin-top:10px;padding-bottom:4px}
+  .tab{display:none;animation:in .3s ease}
+  .tab.act{display:block}
+  @keyframes in{from{opacity:0;transform:translateY(8px)}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px;margin-bottom:10px;backdrop-filter:blur(10px)}
+  label{display:block;font-size:12px;color:var(--mute);margin:0 0 6px}
+  .grid2{display:grid;grid-template-columns:1fr;gap:10px}
+  .sw{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+  .sw button{position:relative;aspect-ratio:1.5;padding:0;border-radius:12px;border:2px solid rgba(255,255,255,.14)}
+  .sw button:hover{transform:translateY(-2px) scale(1.05);box-shadow:0 6px 16px rgba(0,0,0,.4)}
+  .sw.edit button{animation:wob .5s ease-in-out infinite alternate}
+  @keyframes wob{from{transform:rotate(-2deg)}to{transform:rotate(2deg)}}
+  .sw.edit button::after{content:"×";position:absolute;inset:0;display:grid;place-items:center;font-size:24px;color:#fff;
+       text-shadow:0 0 4px #000;background:rgba(0,0,0,.3);border-radius:10px}
+  .empty{color:var(--mute);font-size:13px;grid-column:1/-1}
+  input[type=range]{width:100%;height:28px;accent-color:var(--acc)}
+  input[type=color]{width:100%;height:44px;border:0;border-radius:12px;background:none;padding:0;cursor:pointer}
+  select{width:100%;padding:10px;border-radius:12px;background:rgba(255,255,255,.08);color:var(--text);border:1px solid var(--line);font:inherit}
   .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-  button{background:var(--line);color:var(--text);border:0;border-radius:10px;padding:12px 14px;font-size:16px;flex:1;min-width:0}
-  button.primary{background:var(--acc);color:#fff;font-weight:600}
-  button.small{padding:8px 10px;font-size:14px;flex:0 0 auto}
-  button.on{outline:2px solid var(--acc)}
-  .status{font-size:14px;color:var(--mute);margin-top:8px;word-break:break-word}
-  .status.ok{color:#5ad17a}.status.err{color:#ff7a7a}
-  label{display:block;font-size:13px;color:var(--mute);margin:2px 0 8px}
-  input[type=range]{width:100%;height:32px}
-  input[type=color]{width:100%;height:48px;border:0;border-radius:10px;background:none;padding:0}
-  select{width:100%;padding:12px;border-radius:10px;background:var(--line);color:var(--text);border:0;font-size:16px}
-  .hint{font-size:13px;color:var(--mute);margin-top:8px}
-  .off{opacity:.45;pointer-events:none}
-  .head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
-  .head label{margin:0}
-  .sw{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:12px}
-  .sw button{position:relative;height:44px;padding:0;border-radius:12px;border:2px solid rgba(255,255,255,.12)}
-  .sw.edit button::after{content:"×";position:absolute;inset:0;display:grid;place-items:center;font-size:26px;
-       color:#fff;text-shadow:0 0 4px #000,0 0 2px #000;background:rgba(0,0,0,.25);border-radius:10px}
-  .empty{color:var(--mute);font-size:14px;grid-column:1/-1;padding:6px 0}
-  .band{padding:10px 0;border-top:1px solid var(--line)}
-  .band:first-of-type{border-top:0}
-  .band .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
-  .band .name{font-size:15px}
-  .band .ctl{display:flex;gap:8px;align-items:center}
-  .band input[type=color]{height:40px;flex:1}
-  .band.none input[type=color]{opacity:.25;pointer-events:none}
-  .band.none .name{color:var(--mute)}
-  #panel{display:grid;grid-template-columns:1fr;gap:0 16px;align-items:start}
-  #panel .full{grid-column:1/-1}
-  .fx{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:10px 0}
-  .fx button{text-align:left;padding:10px 12px;display:flex;flex-direction:column;gap:4px;align-items:flex-start;border:2px solid transparent}
-  .fx button.on{border-color:var(--acc);outline:0;background:#232838}
-  .fx .n{font-size:15px;font-weight:600}
-  .fx .d{font-size:12px;color:var(--mute);line-height:1.3}
-  .fx .dots{display:flex;gap:4px}.fx .dots i{width:14px;height:14px;border-radius:50%;display:block;border:1px solid rgba(255,255,255,.2)}
-  .two{display:grid;grid-template-columns:1fr;gap:0 24px}
+  .row>button{flex:1}
+  .fx{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+  .fx button{padding:8px 6px;display:flex;flex-direction:column;gap:5px;align-items:center;font-size:12px;text-align:center;line-height:1.15;position:relative;overflow:hidden}
+  .fx button .dots{display:flex;gap:3px;justify-content:center}
+  .fx .dots i{width:12px;height:12px;border-radius:50%;display:block;border:1px solid rgba(255,255,255,.25)}
+  .fx button:hover .dots i{animation:bob .6s ease infinite alternate}
+  .fx button:hover .dots i:nth-child(2){animation-delay:.1s}.fx button:hover .dots i:nth-child(3){animation-delay:.2s}
+  @keyframes bob{to{transform:translateY(-3px)}}
+  .fx button.on{border-color:transparent;background:linear-gradient(#1c2030,#1c2030) padding-box,linear-gradient(120deg,#4f8cff,#ff0078,#ffc800,#4f8cff) border-box;
+                border:2px solid transparent;background-size:100% 100%,300% 100%;animation:flow 3s linear infinite}
+  @keyframes flow{to{background-position:0 0,300% 0}}
+  #fxinfo{font-size:13px;color:var(--mute);min-height:34px;margin:10px 0 4px}
+  #fxinfo b{color:var(--text)}
+  .band{background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:12px;padding:8px;transition:opacity .2s}
+  #bands{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0}
+  .band .top{display:flex;flex-direction:column;gap:6px;margin-bottom:6px}
+  .band .name{font-size:12px}
+  .band .ctl{display:flex;gap:6px}
+  .band .ctl .small{flex:1;padding:5px}
+  .band .take{display:none}
+  .band input[type=color]{height:36px}
+  .band.none{opacity:.55}.band.none input[type=color]{opacity:.2;pointer-events:none}
+  #presets{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:2px;scrollbar-width:none}
+  #presets::-webkit-scrollbar{display:none}
+  #presets button{flex:none;white-space:nowrap}
+  #mic{width:100%;padding:14px;font-size:16px;font-weight:600;margin-top:4px}
+  #mic.on{background:linear-gradient(135deg,#ff0078,#a000ff);border-color:transparent;animation:beat 1s ease-in-out infinite}
+  @keyframes beat{50%{box-shadow:0 0 24px rgba(255,0,120,.6)}}
+  .hint{font-size:12px;color:var(--mute);margin-top:6px}
+  .bar{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:14px;
+       padding:6px 14px;margin-top:8px;backdrop-filter:blur(10px)}
+  .bar label{margin:0;white-space:nowrap}
+  .bar input{flex:1}
   @media(min-width:760px){
-    body{padding:28px 32px}
-    h1{font-size:26px;margin-bottom:20px}
-    #panel{grid-template-columns:1fr 1fr}
-    .fx{grid-template-columns:repeat(3,1fr)}
-    .two{grid-template-columns:1fr 1fr}
-    button:hover{filter:brightness(1.15);cursor:pointer}
+    .app{padding:22px 28px}
+    h1{font-size:22px}
+    .grid2{grid-template-columns:1fr 1fr;gap:14px}
+    .fx{grid-template-columns:repeat(4,1fr)}
+    .sw{grid-template-columns:repeat(5,1fr)}
   }
-  @media(min-width:1050px){.fx{grid-template-columns:repeat(4,1fr)}}
+  @media(max-height:620px){.fx button .dots{display:none}}
 </style>
 </head>
 <body>
-<h1>Светодиодная лента</h1>
-
-<div class="card">
-  <div class="row"><button class="primary" id="connect">Подключить ленту</button></div>
-  <div class="row" style="margin-top:8px"><button class="small" id="connectAll" style="flex:1">Показать все устройства</button></div>
-  <div class="status" id="status">Закройте приложение duoCo Strip и нажмите кнопку.</div>
-</div>
-
-<div id="panel" class="off">
-  <div class="card full">
-    <div class="row">
-      <button id="on">Включить</button>
-      <button id="off">Выключить</button>
-    </div>
+<div class="glow off" id="glow"></div>
+<div class="app">
+  <header>
+    <h1>Лента</h1>
+    <div class="pw"><button id="on" class="small">Вкл</button><button id="off" class="small">Выкл</button></div>
+  </header>
+  <div class="connect">
+    <div class="chip" id="chip" style="flex:1"><span class="dot"></span><span id="status">Закройте duoCo Strip и нажмите «Подключить»</span></div>
+    <button class="primary small" id="connect">Подключить</button>
   </div>
+  <details style="margin:0"><summary>Не находит ленту?</summary><div class="more"><button class="small" id="connectAll">Показать все устройства</button></div></details>
 
-  <div class="card">
-    <div class="head">
-      <label>Избранные цвета</label>
-      <button class="small" id="editFav">Изменить</button>
-    </div>
-    <div class="sw" id="swatches"></div>
-    <label>Выбрать любой цвет</label>
-    <input type="color" id="picker" value="#ff0078">
-    <div class="row" style="margin-top:10px">
-      <button id="addFav">★ Добавить в избранное</button>
-      <button id="resetFav" class="small">Сбросить палитру</button>
-    </div>
-    <label style="margin-top:14px">Яркость: <span id="bval">100</span>%</label>
-    <input type="range" id="bright" min="1" max="100" value="100">
-  </div>
+  <div id="panel" class="off">
+    <nav class="tabs" id="tabs">
+      <div class="ind" id="ind"></div>
+      <button class="act" data-t="color">Цвет</button>
+      <button data-t="fxt">Эффекты</button>
+      <button data-t="snd">Звук</button>
+    </nav>
 
-  <div class="card full" id="fxcard">
-    <div class="head"><label>Встроенные эффекты ленты (нажмите, чтобы запустить)</label></div>
-    <div class="fx" id="fx"></div>
-    <label>Скорость: <span id="sval">50</span>%</label>
-    <input type="range" id="speed" min="0" max="100" value="50">
-    <div class="hint">Названия и описания взяты из открытого описания протокола таких лент, у вашей модели порядок может отличаться. Если эффект не совпал с описанием, это нормально.</div>
-  </div>
-  <div class="card">
-    <div class="head"><label>Режим «под звук» (микрофон телефона)</label></div>
-    <label>Как реагировать</label>
-    <select id="sndMode">
-      <option value="bands">Полосы: цвет по частотам (мягко)</option>
-      <option value="flash">Вспышки на бит (заметно)</option>
-      <option value="cycle">Смена цвета на каждый бит (максимум)</option>
-    </select>
-    <label style="margin-top:14px">Яркость (не зависит от громкости): <span id="smaxv">100</span>%</label>
-    <input type="range" id="smax" min="5" max="100" value="100">
-    <label style="margin-top:14px">Фон между вспышками: <span id="sminv">0</span>%</label>
-    <input type="range" id="smin" min="0" max="80" value="0">
-    <label style="margin-top:14px">Чувствительность: <span id="sgainv">150</span>%</label>
-    <input type="range" id="sgain" min="50" max="400" value="150">
-    <div class="hint" style="margin:14px 0 8px">Готовые идеи (басы / средние / высокие):</div>
-    <div class="row" id="presets" style="flex-wrap:wrap;margin-bottom:12px"></div>
-    <div id="bands"></div>
-    <div class="hint">У каждой полосы свой цвет. Нажмите «Убрать», чтобы полоса не светилась. Если оставить одну полосу, её цвет будет реагировать на весь звук сразу.</div>
-    <div class="row" style="margin-top:12px"><button id="mic">Включить режим</button></div>
+    <div class="stage">
+      <section class="tab act" id="tab-color">
+        <div class="grid2">
+          <div class="card">
+            <label>Избранные цвета</label>
+            <div class="sw" id="swatches"></div>
+            <details><summary>Изменить палитру</summary>
+              <div class="more row" style="margin-top:6px">
+                <button class="small" id="editFav">Изменить</button>
+                <button class="small" id="addFav">★ Добавить выбранный</button>
+                <button class="small" id="resetFav">Сбросить</button>
+              </div>
+            </details>
+          </div>
+          <div class="card">
+            <label>Любой цвет</label>
+            <input type="color" id="picker" value="#ff0078">
+          </div>
+        </div>
+      </section>
+
+      <section class="tab" id="tab-fxt">
+        <div class="card">
+          <div class="fx" id="fx"></div>
+          <div id="fxinfo">Выберите эффект, здесь появится описание.</div>
+          <label>Скорость: <span id="sval">50</span>%</label>
+          <input type="range" id="speed" min="0" max="100" value="50">
+        </div>
+      </section>
+
+      <section class="tab" id="tab-snd">
+        <div class="card">
+          <button id="mic">Включить режим</button>
+          <div class="hint" style="margin:8px 0 6px">Цвета для басов, средних и высоких. «Убрать» делает полосу пустой, один цвет реагирует на весь звук.</div>
+          <div id="presets"></div>
+          <div id="bands"></div>
+          <details><summary>Настройки реакции</summary>
+            <div class="more">
+              <label>Как реагировать</label>
+              <select id="sndMode">
+                <option value="bands">Полосы: цвет по частотам (мягко)</option>
+                <option value="flash">Вспышки на бит (заметно)</option>
+                <option value="cycle">Смена цвета на каждый бит (максимум)</option>
+              </select>
+              <label style="margin-top:10px">Яркость, не зависит от громкости: <span id="smaxv">100</span>%</label>
+              <input type="range" id="smax" min="5" max="100" value="100">
+              <label>Фон между вспышками: <span id="sminv">0</span>%</label>
+              <input type="range" id="smin" min="0" max="80" value="0">
+              <label>Чувствительность: <span id="sgainv">150</span>%</label>
+              <input type="range" id="sgain" min="50" max="400" value="150">
+            </div>
+          </details>
+        </div>
+      </section>
+    </div>
+
+    <div class="bar"><label>Яркость <span id="bval">100</span>%</label><input type="range" id="bright" min="1" max="100" value="100"></div>
   </div>
 </div>
 
@@ -156,7 +231,7 @@ const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } c
 
 const pkt = (...b) => new Uint8Array([0x7e, 0x00, ...b, 0xef]);
 const hex2rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
-function setStatus(t, cls = '') { $('status').textContent = t; $('status').className = 'status ' + cls; }
+function setStatus(t, cls = '') { $('status').textContent = t; $('chip').className = 'chip ' + cls; $('glow').classList.toggle('off', !chr); }
 
 // Последняя команда важнее старых: очередь не копится, ползунки не тормозят.
 async function send(p) {
@@ -175,7 +250,13 @@ async function send(p) {
 }
 const turnOn = () => send(pkt(0x04, 0xf0, 0x00, 0x01, 0xff, 0x00));
 const turnOff = () => send(pkt(0x04, 0x00, 0x00, 0x00, 0xff, 0x00));
-const setRGB = (r, g, b) => send(pkt(0x05, 0x03, r, g, b, 0x00));
+const setRGB = (r, g, b) => {
+  const k = Math.max(r, g, b) || 1, m = 255 / k;   // яркий цвет для свечения, даже если лента приглушена
+  document.documentElement.style.setProperty('--glow', 'rgb(' + Math.round(r * m) + ',' + Math.round(g * m) + ',' + Math.round(b * m) + ')');
+  $('glow').style.opacity = (0.15 + 0.5 * k / 255).toFixed(2);
+  $('glow').classList.remove('fxrun');
+  send(pkt(0x05, 0x03, r, g, b, 0x00));
+};
 
 async function connect(all) {
   if (!navigator.bluetooth) {
@@ -318,16 +399,17 @@ const EFFECTS = [
 let curFx = -1;
 EFFECTS.forEach(([name, desc, cols], i) => {
   const b = document.createElement('button');
-  b.innerHTML = '<div class="dots"></div><span class="n"></span><span class="d"></span>';
-  b.querySelector('.n').textContent = name; b.querySelector('.d').textContent = desc;
+  b.innerHTML = '<div class="dots"></div><span class="n"></span>';
+  b.querySelector('.n').textContent = name;
   cols.forEach(c => { const d = document.createElement('i'); d.style.background = c; b.querySelector('.dots').appendChild(d); });
   b.onclick = () => {
-    stopMic(); curFx = i;
+    stopMic(); curFx = i; $('fxinfo').innerHTML = '<b>' + name + '.</b> ' + desc; $('glow').classList.add('fxrun'); $('glow').style.opacity = .5;
     document.querySelectorAll('#fx button').forEach((x, k) => x.classList.toggle('on', k === i));
     sendSeq(pkt(0x04, 0xf0, 0x00, 0x01, 0xff, 0x00),
             pkt(0x03, 0x87 + i, 0x03, 0, 0, 0),
             pkt(0x02, +$('speed').value, 0, 0, 0, 0));
   };
+  b.onmouseenter = () => { if (curFx < 0) $('fxinfo').innerHTML = '<b>' + name + '.</b> ' + desc; };
   $('fx').appendChild(b);
 });
 
@@ -442,6 +524,12 @@ function stopMic() {
 }
 $('mic').onclick = () => micOn ? stopMic() : startMic();
 
+const TABS = ['color', 'fxt', 'snd'];
+document.querySelectorAll('#tabs button').forEach((b, i) => b.onclick = () => {
+  document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('act', x === b));
+  TABS.forEach(t => $('tab-' + t).classList.toggle('act', t === b.dataset.t));
+  $('ind').style.transform = 'translateX(' + (i * 100) + '%)';
+});
 renderFav(); renderBands(); autoConnect();
 </script>
 </body>
