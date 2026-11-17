@@ -94,7 +94,19 @@ window.addEventListener('error', function (e) {
 
   <div class="card">
     <div class="head"><label>Режим «под звук» (микрофон телефона)</label></div>
-    <div class="hint" style="margin:0 0 8px">Готовые идеи (басы / средние / высокие):</div>
+    <label>Как реагировать</label>
+    <select id="sndMode">
+      <option value="bands">Полосы: цвет по частотам (мягко)</option>
+      <option value="flash">Вспышки на бит (заметно)</option>
+      <option value="cycle">Смена цвета на каждый бит (максимум)</option>
+    </select>
+    <label style="margin-top:14px">Яркость (не зависит от громкости): <span id="smaxv">100</span>%</label>
+    <input type="range" id="smax" min="5" max="100" value="100">
+    <label style="margin-top:14px">Фон между вспышками: <span id="sminv">0</span>%</label>
+    <input type="range" id="smin" min="0" max="80" value="0">
+    <label style="margin-top:14px">Чувствительность: <span id="sgainv">150</span>%</label>
+    <input type="range" id="sgain" min="50" max="400" value="150">
+    <div class="hint" style="margin:14px 0 8px">Готовые идеи (басы / средние / высокие):</div>
     <div class="row" id="presets" style="flex-wrap:wrap;margin-bottom:12px"></div>
     <div id="bands"></div>
     <div class="hint">У каждой полосы свой цвет. Нажмите «Убрать», чтобы полоса не светилась. Если оставить одну полосу, её цвет будет реагировать на весь звук сразу.</div>
@@ -122,6 +134,7 @@ try {
   const s = JSON.parse(localStorage.getItem(KEY) || 'null');
   if (s && Array.isArray(s.fav) && Array.isArray(s.bands) && s.bands.length === 3) state = s;
 } catch (e) {}
+state.snd = Object.assign({mode: 'bands', max: 100, min: 0, gain: 150}, state.snd);
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} };
 
 const pkt = (...b) => new Uint8Array([0x7e, 0x00, ...b, 0xef]);
@@ -261,7 +274,13 @@ PRESETS.forEach(([name, cols]) => {
 });
 
 // ---------- Режим «под звук» ----------
-let ac, stream, timer;
+let ac, stream, timer, rawBass = 0, beatAvg = 0, lastBeat = 0, flash = 0, ci = 0;
+$('sndMode').value = state.snd.mode;
+[['smax', 'max', 'smaxv'], ['smin', 'min', 'sminv'], ['sgain', 'gain', 'sgainv']].forEach(([id, key, out]) => {
+  $(id).value = state.snd[key]; $(out).textContent = state.snd[key];
+  $(id).oninput = e => { state.snd[key] = +e.target.value; $(out).textContent = e.target.value; save(); };
+});
+$('sndMode').onchange = e => { state.snd.mode = e.target.value; save(); };
 const peak = [1e-6, 1e-6, 1e-6, 1e-6], level = [0, 0, 0, 0];
 async function startMic() {
   if (!state.bands.some(Boolean)) { setStatus('Задайте цвет хотя бы одной полосе.', 'err'); return; }
@@ -281,20 +300,36 @@ async function startMic() {
     an.getByteFrequencyData(buf);
     ranges.forEach(([lo, hi], i) => {
       let s = 0; for (let k = Math.floor(lo / hz); k < hi / hz && k < buf.length; k++) s += buf[k];
+      if (i === 0) rawBass = s;
       peak[i] = Math.max(s, peak[i] * 0.995, 1e-6);
       const n = Math.pow(Math.min(s / peak[i], 1), 2);
       level[i] = n > level[i] ? n : level[i] * 0.8 + n * 0.2;
     });
     const active = [0, 1, 2].filter(i => state.bands[i]);
     if (!active.length) return setRGB(0, 0, 0);
+    const g = state.snd.gain / 100, floor = state.snd.min / 100, top = state.snd.max / 100;
+    const shape = k => top * (floor + (1 - floor) * Math.min(1, k * g));  // яркость: потолок и фон задаёт пользователь
     let rgb;
-    if (active.length === 1) {                 // один цвет — на весь звук
-      const c = hex2rgb(state.bands[active[0]]), k = level[3];
-      rgb = c.map(v => Math.round(v * k));
-    } else {                                   // несколько — каждая полоса своим цветом
-      const tot = active.reduce((a, i) => a + level[i], 0), mx = Math.max(...active.map(i => level[i]));
-      if (tot < 1e-3) return setRGB(0, 0, 0);
-      rgb = [0, 1, 2].map(k => Math.round(active.reduce((a, i) => a + level[i] * hex2rgb(state.bands[i])[k], 0) / tot * mx));
+    if (state.snd.mode === 'bands') {
+      if (active.length === 1) {               // один цвет — на весь звук
+        rgb = hex2rgb(state.bands[active[0]]).map(v => Math.round(v * shape(level[3])));
+      } else {                                 // несколько — каждая полоса своим цветом
+        const tot = active.reduce((a, i) => a + level[i], 0), mx = Math.max(...active.map(i => level[i]));
+        if (tot < 1e-3) return setRGB(...[0, 1, 2].map(() => Math.round(255 * 0)));
+        const k = shape(mx);
+        rgb = [0, 1, 2].map(c => Math.round(active.reduce((a, i) => a + level[i] * hex2rgb(state.bands[i])[c], 0) / tot * k));
+      }
+    } else {                                   // вспышки на бит басов
+      const now = performance.now(), bass = rawBass;
+      beatAvg = beatAvg * 0.94 + bass * 0.06;
+      if (bass > beatAvg * 1.25 && bass > peak[0] * 0.25 && now - lastBeat > 200) {
+        lastBeat = now; flash = 1;
+        if (state.snd.mode === 'cycle') ci++;
+      }
+      flash *= 0.82;
+      const col = state.snd.mode === 'cycle' ? state.bands[active[ci % active.length]] : state.bands[active[0]];
+      const k = shape(flash / g);              // вспышка не зависит от громкости, только от бита
+      rgb = hex2rgb(col).map(v => Math.round(v * k));
     }
     setRGB(...rgb);
   }, 70);
