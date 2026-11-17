@@ -274,7 +274,7 @@ PRESETS.forEach(([name, cols]) => {
 });
 
 // ---------- Режим «под звук» ----------
-let ac, stream, timer, rawBass = 0, beatAvg = 0, lastBeat = 0, flash = 0, ci = 0;
+let ac, stream, timer, rawBass = 0, hist = [], beats = 0, lastBeat = 0, flash = 0, ci = 0;
 $('sndMode').value = state.snd.mode;
 [['smax', 'max', 'smaxv'], ['smin', 'min', 'sminv'], ['sgain', 'gain', 'sgainv']].forEach(([id, key, out]) => {
   $(id).value = state.snd[key]; $(out).textContent = state.snd[key];
@@ -291,7 +291,7 @@ async function startMic() {
     stream = await navigator.mediaDevices.getUserMedia({audio: {echoCancellation: false, noiseSuppression: false, autoGainControl: false}});
   } catch (e) { setStatus('Нет доступа к микрофону: ' + e.message, 'err'); return; }
   ac = new (window.AudioContext || window.webkitAudioContext)();
-  const an = ac.createAnalyser(); an.fftSize = 2048; an.smoothingTimeConstant = 0.5;
+  const an = ac.createAnalyser(); an.fftSize = 2048; an.smoothingTimeConstant = 0.1; an.minDecibels = -90; an.maxDecibels = -25;
   ac.createMediaStreamSource(stream).connect(an);
   const buf = new Uint8Array(an.frequencyBinCount), hz = ac.sampleRate / an.fftSize;
   const ranges = [...BAND_DEF.map(b => [b.lo, b.hi]), [30, 12000]]; // 4-я — весь звук сразу
@@ -321,10 +321,14 @@ async function startMic() {
       }
     } else {                                   // вспышки на бит басов
       const now = performance.now(), bass = rawBass;
-      beatAvg = beatAvg * 0.94 + bass * 0.06;
-      if (bass > beatAvg * 1.25 && bass > peak[0] * 0.25 && now - lastBeat > 200) {
-        lastBeat = now; flash = 1;
+      hist.push(bass); if (hist.length > 20) hist.shift();       // ~1.4 с истории
+      const mean = hist.reduce((a, b) => a + b, 0) / hist.length;
+      const sd = Math.sqrt(hist.reduce((a, b) => a + (b - mean) * (b - mean), 0) / hist.length);
+      const c = Math.min(2.5, Math.max(0.6, 3 - state.snd.gain / 100));  // выше чувствительность — ниже порог
+      if (bass > mean + c * sd && bass > mean * 1.08 && bass > 30 && now - lastBeat > 200) {
+        lastBeat = now; flash = 1; beats++;
         if (state.snd.mode === 'cycle') ci++;
+        setStatus('Бит: ' + beats, 'ok');
       }
       flash *= 0.82;
       const col = state.snd.mode === 'cycle' ? state.bands[active[ci % active.length]] : state.bands[active[0]];
