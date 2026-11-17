@@ -123,6 +123,19 @@ window.addEventListener('error', function (e) {
     .sw{grid-template-columns:repeat(5,1fr)}
   }
   @media(max-height:620px){.fx button .dots{display:none}}
+  #vstrip{height:8px;border-radius:6px;margin-top:8px;background:#222;transition:background .08s linear;box-shadow:0 0 16px -2px var(--glow)}
+  #viz{width:100%;height:84px;border-radius:12px;background:rgba(0,0,0,.28);display:block;margin-bottom:8px}
+  .tabs{grid-template-columns:repeat(4,1fr)}
+  .tabs .ind{width:calc((100% - 8px)/4)}
+  .bigbtn{font-size:20px;font-weight:700;padding:22px 10px;border-radius:16px;background:linear-gradient(135deg,rgba(79,140,255,.35),rgba(160,0,255,.3))}
+  .bpm{font-size:34px;font-weight:700;text-align:center;min-width:120px;font-variant-numeric:tabular-nums}
+  .bpm small{display:block;font-size:12px;font-weight:400;color:var(--mute)}
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chips .sc{display:flex;gap:2px;align-items:center}
+  .chips .sc .x{padding:6px 8px}
+  .keys{font-size:12px;color:var(--mute);margin:4px 2px 0}
+  kbd{background:rgba(255,255,255,.1);border-radius:5px;padding:1px 6px;font:11px ui-monospace,monospace}
+  .tab .card h3{margin:0 0 8px;font-size:13px;font-weight:600;color:var(--mute);text-transform:uppercase;letter-spacing:.6px}
 </style>
 </head>
 <body>
@@ -136,6 +149,7 @@ window.addEventListener('error', function (e) {
     <div class="chip" id="chip" style="flex:1"><span class="dot"></span><span id="status">Закройте duoCo Strip и нажмите «Подключить»</span></div>
     <button class="primary small" id="connect">Подключить</button>
   </div>
+  <div id="vstrip"></div>
   <details style="margin:0"><summary>Не находит ленту?</summary><div class="more"><button class="small" id="connectAll">Показать все устройства</button></div></details>
 
   <div id="panel" class="off">
@@ -144,6 +158,7 @@ window.addEventListener('error', function (e) {
       <button class="act" data-t="color">Цвет</button>
       <button data-t="fxt">Эффекты</button>
       <button data-t="snd">Звук</button>
+      <button data-t="more">Ещё</button>
     </nav>
 
     <div class="stage">
@@ -180,6 +195,7 @@ window.addEventListener('error', function (e) {
         <div class="card">
           <button id="mic">Включить режим</button>
           <div class="hint" style="margin:8px 0 6px">Цвета для басов, средних и высоких. «Убрать» делает полосу пустой, один цвет реагирует на весь звук.</div>
+          <canvas id="viz"></canvas>
           <div id="presets"></div>
           <div id="bands"></div>
           <details><summary>Настройки реакции</summary>
@@ -198,9 +214,54 @@ window.addEventListener('error', function (e) {
               <input type="range" id="smin" min="0" max="80" value="0">
               <label>Чувствительность: <span id="sgainv">150</span>%</label>
               <input type="range" id="sgain" min="50" max="400" value="150">
+              <label>Задержка вспышки (для Bluetooth-наушников): <span id="sdelv">0</span> мс</label>
+              <input type="range" id="sdel" min="0" max="400" step="10" value="0">
             </div>
           </details>
         </div>
+      </section>
+
+      <section class="tab" id="tab-more">
+        <div class="grid2">
+          <div class="card">
+            <h3>Тап-темп</h3>
+            <div class="row">
+              <button class="bigbtn" id="tap" style="flex:2">Тап в такт</button>
+              <div class="bpm" id="bpmv">120<small>ударов в минуту</small></div>
+            </div>
+            <div class="row" style="margin-top:8px">
+              <button class="small" id="bpmM">−</button>
+              <button class="small" id="bpmP">+</button>
+              <button id="bpmGo">Мигать по темпу</button>
+            </div>
+            <div class="hint">Стучите по кнопке в такт музыки, лента будет мигать цветами из вкладки «Звук» без микрофона.</div>
+          </div>
+          <div class="card">
+            <h3>Таймер</h3>
+            <div class="row">
+              <select id="tmMin" style="flex:1"><option value="5">5 минут</option><option value="15">15 минут</option><option value="30" selected>30 минут</option><option value="60">60 минут</option></select>
+            </div>
+            <div class="row" style="margin-top:8px">
+              <button id="tmOff">Выключить через…</button>
+              <button id="tmSun">Рассвет</button>
+            </div>
+            <div class="hint" id="tmInfo">Выключение идёт плавно, последние 30 секунд лента гаснет. Рассвет разгорается за выбранное время.</div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Живые эффекты</h3>
+          <div class="fx" id="soft"></div>
+          <div id="softinfo" style="font-size:13px;color:var(--mute);min-height:34px;margin:10px 0 4px">Эффекты считает страница, поэтому держите её открытой.</div>
+          <label>Скорость: <span id="ssv">50</span>%</label>
+          <input type="range" id="ssp" min="0" max="100" value="50">
+        </div>
+        <div class="card">
+          <h3>Сцены</h3>
+          <div class="chips" id="scenes"></div>
+          <div class="row" style="margin-top:8px"><button class="small" id="sceneAdd">★ Сохранить текущее</button></div>
+          <div class="hint">Сцена запоминает текущий цвет, эффект или режим под звук вместе с яркостью.</div>
+        </div>
+        <div class="keys">Клавиши на компьютере: <kbd>Пробел</kbd> вкл/выкл, <kbd>1</kbd>–<kbd>0</kbd> избранные цвета, <kbd>←</kbd> <kbd>→</kbd> вкладки, <kbd>M</kbd> режим под звук.</div>
       </section>
     </div>
 
@@ -228,9 +289,34 @@ try {
   const s = JSON.parse(localStorage.getItem(KEY) || 'null');
   if (s && Array.isArray(s.fav) && Array.isArray(s.bands) && s.bands.length === 3) state = s;
 } catch (e) {}
-state.snd = Object.assign({mode: 'bands', max: 100, min: 0, gain: 210, dev: ''}, state.snd);
+state.scenes = Array.isArray(state.scenes) ? state.scenes : [];
+state.snd = Object.assign({mode: 'bands', max: 100, min: 0, gain: 210, dev: '', delay: 0}, state.snd);
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} };
 
+// Таймер в отдельном потоке: в фоновой вкладке обычный setInterval замедляется до раза в секунду, а этот нет.
+const TICK_SRC = 'let t=null;onmessage=e=>{clearInterval(t);if(e.data)t=setInterval(()=>postMessage(0),e.data)}';
+function ticker(fn, ms) {
+  try {
+    const w = new Worker(URL.createObjectURL(new Blob([TICK_SRC], {type: 'text/javascript'})));
+    w.onmessage = fn; w.postMessage(ms);
+    return () => { w.postMessage(0); w.terminate(); };
+  } catch (e) { const id = setInterval(fn, ms); return () => clearInterval(id); }
+}
+// Пока идёт режим, не даём экрану уснуть и просим браузер не усыплять страницу.
+let wakeLock = null, awakeWanted = false, lockRelease = null;
+async function awake(on) {
+  awakeWanted = on;
+  try {
+    if (on && !wakeLock && navigator.wakeLock) {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', () => { wakeLock = null; });
+    } else if (!on && wakeLock) { await wakeLock.release(); wakeLock = null; }
+    if (on && !lockRelease && navigator.locks) navigator.locks.request('ledstrip-run', () => new Promise(r => { lockRelease = r; }));
+    else if (!on && lockRelease) { lockRelease(); lockRelease = null; }
+  } catch (e) {}
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden && awakeWanted && !wakeLock) awake(true); });
+let cur = {t: 'color', hex: '#ff0078'}, isOn = true;
 const pkt = (...b) => new Uint8Array([0x7e, 0x00, ...b, 0xef]);
 const hex2rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
 function setStatus(t, cls = '') { $('status').textContent = t; $('chip').className = 'chip ' + cls; $('glow').classList.toggle('off', !chr); }
@@ -250,13 +336,14 @@ async function send(p) {
   } catch (e) { setStatus('Ошибка отправки: ' + e.message, 'err'); }
   busy = false;
 }
-const turnOn = () => send(pkt(0x04, 0xf0, 0x00, 0x01, 0xff, 0x00));
-const turnOff = () => send(pkt(0x04, 0x00, 0x00, 0x00, 0xff, 0x00));
+const turnOn = () => { isOn = true; return send(pkt(0x04, 0xf0, 0x00, 0x01, 0xff, 0x00)); };
+const turnOff = () => { isOn = false; return send(pkt(0x04, 0x00, 0x00, 0x00, 0xff, 0x00)); };
 const setRGB = (r, g, b) => {
   const k = Math.max(r, g, b) || 1, m = 255 / k;   // яркий цвет для свечения, даже если лента приглушена
   document.documentElement.style.setProperty('--glow', 'rgb(' + Math.round(r * m) + ',' + Math.round(g * m) + ',' + Math.round(b * m) + ')');
   $('glow').style.opacity = (0.15 + 0.5 * k / 255).toFixed(2);
   $('glow').classList.remove('fxrun');
+  $('vstrip').style.background = 'rgb(' + r + ',' + g + ',' + b + ')';
   send(pkt(0x05, 0x03, r, g, b, 0x00));
 };
 
@@ -339,7 +426,7 @@ function renderFav() {
     b.style.background = c; b.setAttribute('aria-label', c);
     b.onclick = () => {
       if (editMode) { state.fav.splice(i, 1); save(); renderFav(); return; }
-      stopMic(); $('picker').value = c; turnOn(); setRGB(...hex2rgb(c));
+      stopMic(); cur = {t: 'color', hex: c}; $('picker').value = c; turnOn(); setRGB(...hex2rgb(c));
     };
     box.appendChild(b);
   });
@@ -360,7 +447,7 @@ $('connect').onclick = () => connect(false);
 $('connectAll').onclick = () => connect(true);
 $('on').onclick = turnOn;
 $('off').onclick = () => { stopMic(); turnOff(); };
-$('picker').oninput = e => { stopMic(); setRGB(...hex2rgb(e.target.value)); };
+$('picker').oninput = e => { stopMic(); cur = {t: 'color', hex: e.target.value}; setRGB(...hex2rgb(e.target.value)); };
 $('bright').oninput = e => { $('bval').textContent = e.target.value; send(pkt(0x01, +e.target.value, 0, 0, 0, 0)); };
 $('speed').oninput = e => { $('sval').textContent = e.target.value; send(pkt(0x02, +e.target.value, 0, 0, 0, 0)); };
 // Команды по порядку: send() оставляет только последнюю, поэтому здесь ждём каждую.
@@ -405,7 +492,7 @@ EFFECTS.forEach(([name, desc, cols], i) => {
   b.querySelector('.n').textContent = name;
   cols.forEach(c => { const d = document.createElement('i'); d.style.background = c; b.querySelector('.dots').appendChild(d); });
   b.onclick = () => {
-    stopMic(); curFx = i; $('fxinfo').innerHTML = '<b>' + name + '.</b> ' + desc; $('glow').classList.add('fxrun'); $('glow').style.opacity = .5;
+    stopMic(); curFx = i; cur = {t: 'fx', i, speed: +$('speed').value}; $('fxinfo').innerHTML = '<b>' + name + '.</b> ' + desc; $('glow').classList.add('fxrun'); $('glow').style.opacity = .5;
     document.querySelectorAll('#fx button').forEach((x, k) => x.classList.toggle('on', k === i));
     sendSeq(pkt(0x04, 0xf0, 0x00, 0x01, 0xff, 0x00),
             pkt(0x03, 0x87 + i, 0x03, 0, 0, 0),
@@ -455,7 +542,7 @@ PRESETS.forEach(([name, cols]) => {
 // ---------- Режим «под звук» ----------
 let ac, stream, timer, rawBass = 0, hist = [], beats = 0, lastBeat = 0, flash = 0, ci = 0;
 $('sndMode').value = state.snd.mode;
-[['smax', 'max', 'smaxv'], ['smin', 'min', 'sminv'], ['sgain', 'gain', 'sgainv']].forEach(([id, key, out]) => {
+[['smax', 'max', 'smaxv'], ['smin', 'min', 'sminv'], ['sgain', 'gain', 'sgainv'], ['sdel', 'delay', 'sdelv']].forEach(([id, key, out]) => {
   $(id).value = state.snd[key]; $(out).textContent = state.snd[key];
   $(id).oninput = e => { state.snd[key] = +e.target.value; $(out).textContent = e.target.value; save(); };
 });
@@ -471,8 +558,14 @@ async function refreshSrc() {
 }
 $('sndSrc').onchange = e => { state.snd.dev = e.target.value; save(); };
 refreshSrc();
+function syncSnd() {
+  $('sndMode').value = state.snd.mode;
+  [['smax', 'max', 'smaxv'], ['smin', 'min', 'sminv'], ['sgain', 'gain', 'sgainv'], ['sdel', 'delay', 'sdelv']].forEach(([id, key, out]) => { $(id).value = state.snd[key]; $(out).textContent = state.snd[key]; });
+}
 $('sndMode').onchange = e => { state.snd.mode = e.target.value; save(); };
 const peak = [1e-6, 1e-6, 1e-6, 1e-6], level = [0, 0, 0, 0];
+const viz = {buf: null, hz: 1, thr: 0, bass: 0, scale: 1, beat: 0};
+let pendingBeats = [];
 async function startMic() {
   if (!state.bands.some(Boolean)) { setStatus('Задайте цвет хотя бы одной полосе.', 'err'); return; }
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -495,8 +588,10 @@ async function startMic() {
   ac.createMediaStreamSource(stream).connect(an);
   const buf = new Uint8Array(an.frequencyBinCount), hz = ac.sampleRate / an.fftSize;
   const ranges = [...BAND_DEF.map(b => [b.lo, b.hi]), [30, 12000]]; // 4-я — весь звук сразу
+  stopSoft(); cur = {t: 'sound'}; awake(true);
+  viz.buf = buf; viz.hz = hz;
   turnOn(); micOn = true; $('mic').textContent = 'Выключить режим'; $('mic').classList.add('on');
-  timer = setInterval(() => {
+  timer = ticker(() => {
     an.getByteFrequencyData(buf);
     ranges.forEach(([lo, hi], i) => {
       let s = 0; for (let k = Math.floor(lo / hz); k < hi / hz && k < buf.length; k++) s += buf[k];
@@ -525,10 +620,15 @@ async function startMic() {
       const mean = hist.reduce((a, b) => a + b, 0) / hist.length;
       const sd = Math.sqrt(hist.reduce((a, b) => a + (b - mean) * (b - mean), 0) / hist.length);
       const c = Math.min(2.5, Math.max(0.6, 3 - state.snd.gain / 100));  // выше чувствительность — ниже порог
-      if (bass > mean + c * sd && bass > mean * 1.1 && bass > 30 && now - lastBeat > 180) {
-        lastBeat = now; flash = 1; beats++;
-        if (state.snd.mode === 'cycle') ci++;
+      viz.bass = bass; viz.thr = Math.max(mean + c * sd, mean * 1.1, 30); viz.scale = Math.max(...hist, viz.thr) * 1.15;
+      if (bass > viz.thr && now - lastBeat > 180) {
+        lastBeat = now; beats++; viz.beat = 1;
+        pendingBeats.push(now + state.snd.delay);          // задержку задаёт пользователь (Bluetooth-наушники)
         setStatus('Бит: ' + beats, 'ok');
+      }
+      if (pendingBeats.length && pendingBeats[0] <= now) {
+        pendingBeats.shift(); flash = 1;
+        if (state.snd.mode === 'cycle') ci++;
       }
       flash *= 0.6;
       const col = state.snd.mode === 'cycle' ? state.bands[active[ci % active.length]] : state.bands[active[0]];
@@ -539,21 +639,199 @@ async function startMic() {
   }, 70);
 }
 function stopMic() {
+  stopSoft();
   if (!micOn) return;
-  micOn = false; clearInterval(timer);
+  micOn = false; if (timer) timer(); timer = null; pendingBeats = []; awake(false);
   if (stream) stream.getTracks().forEach(t => t.stop());
   if (ac) ac.close();
   $('mic').textContent = 'Включить режим'; $('mic').classList.remove('on');
 }
 $('mic').onclick = () => micOn ? stopMic() : startMic();
 
-const TABS = ['color', 'fxt', 'snd'];
+
+// ---------- Живые эффекты (считает страница) ----------
+const hsv = (h, s, v) => { const f = n => { const k = (n + h * 6) % 6; return v - v * s * Math.max(0, Math.min(k, 4 - k, 1)); }; return [f(5), f(3), f(1)].map(x => Math.round(x * 255)); };
+const lerp = (a, b, t) => a + (b - a) * t;
+const mix = (c1, c2, t) => c1.map((v, i) => Math.round(lerp(v, c2[i], t)));
+let softStop = null, softId = '', beatPlan = null;
+function stopSoft() {
+  if (softStop) { softStop(); softStop = null; awake(false); }
+  softId = '';
+  document.querySelectorAll('#soft button').forEach(b => b.classList.remove('on'));
+  const g = $('bpmGo'); if (g) g.classList.remove('on');
+}
+function startSoft(id, fn, ms = 80) {
+  stopMic(); softId = id; awake(true);
+  const t0 = performance.now();
+  softStop = ticker(() => fn(performance.now() - t0), ms);
+  turnOn();
+}
+const spdMs = (lo, hi) => lerp(hi, lo, +$('ssp').value / 100);   // скорость 0..100 → период от hi до lo
+const SOFT = [
+  {id: 'candle', name: 'Свеча', desc: 'Тёплое живое мерцание, как у свечи.', dots: ['#ff8c28', '#ff5000'], run() {
+    let v = .8, tg = .8, nx = 0;
+    return t => { if (t > nx) { tg = .35 + Math.random() * .65; nx = t + 60 + Math.random() * 160; } v += (tg - v) * .35;
+      setRGB(Math.round(255 * v), Math.round(95 * v), Math.round(12 * v)); }; }},
+  {id: 'fire', name: 'Огонь', desc: 'Красно-оранжевое пламя с резкими всполохами.', dots: ['#ff0000', '#ff8c28', '#ffc800'], run() {
+    let v = .8, tg = .8, nx = 0, hue = 0;
+    return t => { if (t > nx) { tg = .25 + Math.random() * .75; hue = Math.random(); nx = t + 50 + Math.random() * 120; } v += (tg - v) * .5;
+      setRGB(Math.round(255 * v), Math.round((30 + 90 * hue) * v), 0); }; }},
+  {id: 'storm', name: 'Гроза', desc: 'Тёмно-синий фон и случайные яркие вспышки молнии.', dots: ['#0a0a40', '#ffffff'], run() {
+    let nx = 1500, flashes = 0, until = 0;
+    return t => { if (t > nx) { flashes = 1 + Math.floor(Math.random() * 3); until = t + 70; nx = t + 2500 + Math.random() * 5000; }
+      if (flashes && t < until) setRGB(255, 255, 255);
+      else { if (flashes && t >= until) { flashes--; until = flashes ? t + 110 : 0; if (flashes) { setRGB(0, 0, 0); return; } }
+        setRGB(8, 8, 40); } }; }},
+  {id: 'rainbow', name: 'Радуга', desc: 'Плавный круг по всем цветам. Скорость задаёт ползунок.', dots: ['#ff0000', '#00ff00', '#0000ff'], run() {
+    return t => setRGB(...hsv((t / spdMs(1500, 30000)) % 1, 1, 1)); }},
+  {id: 'breathe', name: 'Дыхание', desc: 'Выбранный цвет плавно гаснет и загорается.', dots: ['#ff0078'], run() {
+    return t => { const k = .08 + .92 * (.5 + .5 * Math.sin(t / spdMs(800, 6000) * 6.283)); setRGB(...hex2rgb($('picker').value).map(v => Math.round(v * k))); }; }},
+  {id: 'sunrise', name: 'Рассвет', desc: 'Медленно разгорается от тёмно-красного до тёплого белого.', dots: ['#300000', '#ff5000', '#ffd796'], run(durMs) {
+    const K = [[0, [25, 0, 0]], [.3, [255, 40, 0]], [.65, [255, 140, 30]], [1, [255, 215, 150]]];
+    return t => { const p = Math.min(1, t / durMs); let i = 1; while (i < K.length - 1 && p > K[i][0]) i++;
+      const a = K[i - 1], b = K[i]; setRGB(...mix(a[1], b[1], (p - a[0]) / (b[0] - a[0]))); }; }}
+];
+function runSoft(id, durMs) {
+  const s = SOFT.find(x => x.id === id); if (!s) return;
+  startSoft(id, s.run(durMs), id === 'sunrise' ? 1000 : 70);
+  cur = {t: 'soft', id, dur: durMs, speed: +$('ssp').value};
+  document.querySelectorAll('#soft button').forEach((b, k) => b.classList.toggle('on', SOFT[k].id === id));
+  $('softinfo').innerHTML = '<b>' + s.name + '.</b> ' + s.desc;
+}
+SOFT.forEach(s => {
+  const b = document.createElement('button');
+  b.innerHTML = '<div class="dots"></div><span class="n"></span>';
+  b.querySelector('.n').textContent = s.name;
+  s.dots.forEach(c => { const d = document.createElement('i'); d.style.background = c; b.querySelector('.dots').appendChild(d); });
+  b.onclick = () => runSoft(s.id, 20 * 60000);
+  b.onmouseenter = () => { if (!softId) $('softinfo').innerHTML = '<b>' + s.name + '.</b> ' + s.desc; };
+  $('soft').appendChild(b);
+});
+$('ssp').oninput = e => { $('ssv').textContent = e.target.value; };
+
+// ---------- Тап-темп ----------
+let bpm = 120, taps = [], anchor = 0;
+const showBpm = () => { $('bpmv').firstChild.nodeValue = Math.round(bpm); };
+$('tap').onclick = () => {
+  const now = performance.now();
+  if (taps.length && now - taps[taps.length - 1] > 2500) taps = [];
+  taps.push(now); if (taps.length > 8) taps.shift();
+  anchor = now;                                             // последний тап считается началом такта
+  if (taps.length >= 2) { bpm = Math.max(40, Math.min(220, 60000 / ((taps[taps.length - 1] - taps[0]) / (taps.length - 1)))); showBpm(); }
+  $('tap').animate([{transform: 'scale(.94)'}, {transform: 'scale(1)'}], 120);
+  if (softId === 'bpm') anchor = now;
+};
+$('bpmM').onclick = () => { bpm = Math.max(40, bpm - 1); showBpm(); };
+$('bpmP').onclick = () => { bpm = Math.min(220, bpm + 1); showBpm(); };
+function runBpm() {
+  const act = [0, 1, 2].filter(i => state.bands[i]);
+  if (!act.length) { setStatus('Задайте цвет хотя бы одной полосе на вкладке «Звук».', 'err'); return; }
+  if (!anchor) anchor = performance.now();
+  const t0 = performance.now();
+  startSoft('bpm', () => {
+    const now = performance.now(), per = 60000 / bpm, n = Math.floor((now - anchor) / per), ph = ((now - anchor) / per) - n;
+    const colr = hex2rgb(state.bands[act[((n % act.length) + act.length) % act.length]]);
+    const k = Math.pow(1 - ph, 2.2) * (state.snd.max / 100) * (1 - state.snd.min / 100) + (state.snd.max / 100) * (state.snd.min / 100);
+    viz.beat = ph < .15 ? 1 : viz.beat;
+    setRGB(...colr.map(v => Math.round(v * k)));
+  }, 60);
+  cur = {t: 'bpm', bpm};
+  $('bpmGo').classList.add('on');
+}
+$('bpmGo').onclick = () => softId === 'bpm' ? (stopSoft(), setRGB(0, 0, 0)) : runBpm();
+
+// ---------- Таймер ----------
+let sleepStop = null;
+function stopSleep(silent) { if (sleepStop) { sleepStop(); sleepStop = null; $('tmOff').classList.remove('on'); if (!silent) $('tmInfo').textContent = 'Таймер отменён.'; } }
+$('tmOff').onclick = () => {
+  if (sleepStop) { stopSleep(); return; }
+  const end = performance.now() + (+$('tmMin').value) * 60000, base = +$('bright').value;
+  $('tmOff').classList.add('on');
+  sleepStop = ticker(() => {
+    const left = end - performance.now();
+    if (left <= 0) { stopSleep(true); stopMic(); turnOff(); send(pkt(0x01, base, 0, 0, 0, 0)); $('tmInfo').textContent = 'Лента выключена по таймеру.'; return; }
+    $('tmInfo').textContent = 'До выключения: ' + Math.floor(left / 60000) + ':' + String(Math.floor(left / 1000) % 60).padStart(2, '0') + '. Нажмите ещё раз, чтобы отменить.';
+    if (left < 30000) send(pkt(0x01, Math.max(1, Math.round(base * left / 30000)), 0, 0, 0, 0));
+  }, 1000);
+};
+$('tmSun').onclick = () => { send(pkt(0x01, 100, 0, 0, 0, 0)); $('bright').value = 100; $('bval').textContent = 100; runSoft('sunrise', (+$('tmMin').value) * 60000); $('tmInfo').textContent = 'Рассвет идёт ' + $('tmMin').value + ' мин.'; };
+
+// ---------- Сцены ----------
+function renderScenes() {
+  const box = $('scenes'); box.innerHTML = '';
+  if (!state.scenes.length) { const e = document.createElement('div'); e.className = 'empty'; e.textContent = 'Пока нет сцен.'; box.appendChild(e); }
+  state.scenes.forEach((s, i) => {
+    const w = document.createElement('div'); w.className = 'sc';
+    const b = document.createElement('button'); b.className = 'small'; b.textContent = s.name; b.onclick = () => applyScene(s);
+    const x = document.createElement('button'); x.className = 'small x'; x.textContent = '×';
+    x.onclick = () => { if (confirm('Удалить сцену «' + s.name + '»?')) { state.scenes.splice(i, 1); save(); renderScenes(); } };
+    w.append(b, x); box.appendChild(w);
+  });
+}
+$('sceneAdd').onclick = () => {
+  const name = prompt('Название сцены', ({color: 'Цвет', fx: 'Эффект', sound: 'Под звук', soft: 'Живой эффект', bpm: 'По темпу'})[cur.t] || 'Сцена');
+  if (!name) return;
+  state.scenes.push({name, cur: JSON.parse(JSON.stringify(cur)), bright: +$('bright').value,
+                     bands: state.bands.slice(), snd: Object.assign({}, state.snd)});
+  save(); renderScenes();
+};
+function applyScene(s) {
+  $('bright').value = s.bright; $('bval').textContent = s.bright; send(pkt(0x01, s.bright, 0, 0, 0, 0));
+  const c = s.cur;
+  if (c.t === 'color') { stopMic(); cur = c; $('picker').value = c.hex; turnOn(); setRGB(...hex2rgb(c.hex)); }
+  else if (c.t === 'fx') { $('speed').value = c.speed; document.querySelectorAll('#fx button')[c.i].click(); }
+  else if (c.t === 'soft') { $('ssp').value = c.speed; $('ssv').textContent = c.speed; runSoft(c.id, c.dur); }
+  else if (c.t === 'bpm') { bpm = c.bpm; showBpm(); state.bands = s.bands.slice(); runBpm(); }
+  else if (c.t === 'sound') { state.bands = s.bands.slice(); Object.assign(state.snd, s.snd); save(); renderBands(); syncSnd(); stopMic(); startMic(); }
+}
+
+// ---------- Визуализатор ----------
+const cv = $('viz'), cx = cv.getContext('2d');
+function drawViz() {
+  requestAnimationFrame(drawViz);
+  if (document.hidden || !$('tab-snd').classList.contains('act')) return;
+  const dpr = devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+  if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+  cx.setTransform(dpr, 0, 0, dpr, 0, 0); cx.clearRect(0, 0, W, H);
+  const accent = getComputedStyle(document.documentElement).getPropertyValue('--glow') || '#ff0078';
+  const N = 36, bw = (W - 70) / N;
+  for (let i = 0; i < N; i++) {                          // спектр: полосы на логарифмической шкале 30 Гц … 12 кГц
+    let v = 0;
+    if (micOn && viz.buf) {
+      const lo = 30 * Math.pow(400, i / N), hi = 30 * Math.pow(400, (i + 1) / N);
+      let m = 0; for (let k = Math.max(1, Math.floor(lo / viz.hz)); k <= Math.max(Math.floor(hi / viz.hz), 1) && k < viz.buf.length; k++) m = Math.max(m, viz.buf[k]);
+      v = m / 255;
+    }
+    cx.fillStyle = i < 6 ? '#ff0078' : i < 20 ? '#ff5a3c' : '#ffc800';
+    cx.globalAlpha = .85; cx.fillRect(70 + i * bw, H - 4 - v * (H - 10), bw - 2, v * (H - 10) + 2);
+  }
+  cx.globalAlpha = 1;
+  // левый индикатор: уровень баса и линия порога, ниже которой бит не срабатывает
+  const bh = H - 12, lv = viz.scale ? Math.min(1, viz.bass / viz.scale) : 0, th = viz.scale ? Math.min(1, viz.thr / viz.scale) : 0;
+  cx.fillStyle = 'rgba(255,255,255,.08)'; cx.fillRect(10, 6, 26, bh);
+  cx.fillStyle = viz.beat > .1 ? '#ffffff' : '#ff0078'; cx.fillRect(10, 6 + bh * (1 - lv), 26, bh * lv);
+  cx.fillStyle = '#4f8cff'; cx.fillRect(6, 6 + bh * (1 - th), 34, 2);
+  cx.beginPath(); cx.arc(54, 16, 4 + 6 * viz.beat, 0, 7); cx.fillStyle = 'rgba(255,255,255,' + (.2 + .8 * viz.beat) + ')'; cx.fill();
+  viz.beat *= .85;
+}
+drawViz();
+
+// ---------- Клавиши ----------
+document.addEventListener('keydown', e => {
+  const tg = e.target.tagName; if (tg === 'SELECT' || (tg === 'INPUT' && e.target.type !== 'range' && e.target.type !== 'color') || e.metaKey || e.ctrlKey || !chr) return;
+  if (e.key === ' ') { e.preventDefault(); if (isOn) { stopMic(); turnOff(); } else turnOn(); }
+  else if (/^[0-9]$/.test(e.key)) { const i = e.key === '0' ? 9 : +e.key - 1, b = document.querySelectorAll('#swatches button')[i]; if (b) b.click(); }
+  else if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && tg !== 'INPUT') { const bs = [...document.querySelectorAll('#tabs button')], k = bs.findIndex(b => b.classList.contains('act')); bs[(k + (e.key === 'ArrowRight' ? 1 : bs.length - 1)) % bs.length].click(); }
+  else if (e.key.toLowerCase() === 'm' || e.key.toLowerCase() === 'ь') micOn ? stopMic() : startMic();
+});
+
+const TABS = ['color', 'fxt', 'snd', 'more'];
 document.querySelectorAll('#tabs button').forEach((b, i) => b.onclick = () => {
   document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('act', x === b));
   TABS.forEach(t => $('tab-' + t).classList.toggle('act', t === b.dataset.t));
   $('ind').style.transform = 'translateX(' + (i * 100) + '%)';
 });
-renderFav(); renderBands(); autoConnect();
+renderFav(); renderBands(); renderScenes(); showBpm(); autoConnect();
 </script>
 </body>
 </html>
