@@ -56,6 +56,7 @@ window.addEventListener('error', function (e) {
 
 <div class="card">
   <div class="row"><button class="primary" id="connect">Подключить ленту</button></div>
+  <div class="row" style="margin-top:8px"><button class="small" id="connectAll" style="flex:1">Показать все устройства</button></div>
   <div class="status" id="status">Закройте приложение duoCo Strip и нажмите кнопку.</div>
 </div>
 
@@ -101,7 +102,7 @@ window.addEventListener('error', function (e) {
 
 <script>
 const $ = id => document.getElementById(id);
-const SERVICES = [0xfff0, 0xffe0, 0xffd0, 0xffd5, 0xffb0, 0xfee0, 0xae00];
+const SERVICES = ['fff0', 'ffe0', 'ffd0', 'ffd5', 'ffb0', 'fee0', 'ae00'].map(h => '0000' + h + '-0000-1000-8000-00805f9b34fb');
 const PREFER = ['fff3', 'ffe1', 'ffd9', 'ffd5'];
 const DEFAULT_FAV = ['#ff0000','#ff0078','#ff5000','#ffc800','#00ff00','#00ffff','#0000ff','#a000ff','#ff8c28','#ffffff'];
 const DEFAULT_BANDS = ['#ff0078', '#ff0000', '#ffc800'];
@@ -144,16 +145,16 @@ const turnOn = () => send(pkt(0x04, 0xf0, 0x00, 0x01, 0xff, 0x00));
 const turnOff = () => send(pkt(0x04, 0x00, 0x00, 0x00, 0xff, 0x00));
 const setRGB = (r, g, b) => send(pkt(0x05, 0x03, r, g, b, 0x00));
 
-async function connect() {
+async function connect(all) {
   if (!navigator.bluetooth) {
     setStatus('Этот браузер не поддерживает Bluetooth. Откройте страницу в Bluefy.', 'err'); return;
   }
   try {
     setStatus('Выбор устройства…');
-    dev = await navigator.bluetooth.requestDevice({
-      filters: [{namePrefix: 'BLEDDM'}, {namePrefix: 'ELK-BLE'}, {namePrefix: 'BLEDOM'}, {namePrefix: 'MELK'}],
-      optionalServices: SERVICES
-    });
+    const opts = all
+      ? {acceptAllDevices: true, optionalServices: SERVICES}
+      : {filters: [{namePrefix: 'BLEDDM'}, {namePrefix: 'ELK-BLE'}, {namePrefix: 'BLEDOM'}, {namePrefix: 'MELK'}], optionalServices: SERVICES};
+    dev = await navigator.bluetooth.requestDevice(opts);
     dev.addEventListener('gattserverdisconnected', () => {
       stopMic(); chr = null; $('panel').classList.add('off');
       setStatus('Связь потеряна. Нажмите «Подключить ленту».', 'err');
@@ -169,7 +170,10 @@ async function connect() {
     $('panel').classList.remove('off');
     setStatus('Подключено: ' + dev.name, 'ok');
     await turnOn();
-  } catch (e) { setStatus('Не вышло: ' + e.message, 'err'); }
+  } catch (e) {
+    const why = e && (e.message || e.name) ? (e.name ? e.name + ': ' : '') + (e.message || '') : String(e);
+    setStatus('Не вышло (' + why + '). Если лента не нашлась, нажмите «Показать все устройства».', 'err');
+  }
 }
 
 // ---------- Избранные цвета ----------
@@ -203,7 +207,8 @@ $('resetFav').onclick = () => {
   if (confirm('Вернуть стандартную палитру?')) { state.fav = DEFAULT_FAV.slice(); save(); renderFav(); }
 };
 
-$('connect').onclick = connect;
+$('connect').onclick = () => connect(false);
+$('connectAll').onclick = () => connect(true);
 $('on').onclick = turnOn;
 $('off').onclick = () => { stopMic(); turnOff(); };
 $('picker').oninput = e => { stopMic(); setRGB(...hex2rgb(e.target.value)); };
