@@ -170,25 +170,59 @@ async function connect(all) {
       ? {acceptAllDevices: true, optionalServices: SERVICES}
       : {filters: [{namePrefix: 'BLEDDM'}, {namePrefix: 'ELK-BLE'}, {namePrefix: 'BLEDOM'}, {namePrefix: 'MELK'}], optionalServices: SERVICES};
     dev = await navigator.bluetooth.requestDevice(opts);
-    dev.addEventListener('gattserverdisconnected', () => {
-      stopMic(); chr = null; $('panel').classList.add('off');
-      setStatus('Связь потеряна. Нажмите «Подключить ленту».', 'err');
-    });
-    setStatus('Подключение…');
-    const server = await dev.gatt.connect();
-    const found = [];
-    for (const s of await server.getPrimaryServices())
-      for (const c of await s.getCharacteristics())
-        if (c.properties.write || c.properties.writeWithoutResponse) found.push(c);
-    if (!found.length) throw new Error('не найден канал для записи');
-    chr = PREFER.map(p => found.find(c => c.uuid.includes(p))).find(Boolean) || found[0];
-    $('panel').classList.remove('off');
-    setStatus('Подключено: ' + dev.name, 'ok');
-    await turnOn();
+    await attach(dev);
   } catch (e) {
     const why = e && (e.message || e.name) ? (e.name ? e.name + ': ' : '') + (e.message || '') : String(e);
     setStatus('Не вышло (' + why + '). Если лента не нашлась, нажмите «Показать все устройства».', 'err');
   }
+}
+
+let reconnecting = false;
+async function attach(d) {
+  dev = d;
+  try { localStorage.setItem(KEY + '.last', d.id); } catch (e) {}
+  if (!d._hooked) {
+    d._hooked = true;
+    d.addEventListener('gattserverdisconnected', () => {
+      stopMic(); chr = null; $('panel').classList.add('off');
+      setStatus('Связь потеряна, переподключаюсь…', 'err');
+      reconnect(d);
+    });
+  }
+  setStatus('Подключение…');
+  const server = await d.gatt.connect();
+  const found = [];
+  for (const s of await server.getPrimaryServices())
+    for (const c of await s.getCharacteristics())
+      if (c.properties.write || c.properties.writeWithoutResponse) found.push(c);
+  if (!found.length) throw new Error('не найден канал для записи');
+  chr = PREFER.map(p => found.find(c => c.uuid.includes(p))).find(Boolean) || found[0];
+  $('panel').classList.remove('off');
+  setStatus('Подключено: ' + d.name, 'ok');
+  await turnOn();
+}
+
+// Повторные попытки к тому же устройству (после обрыва или обновления страницы).
+async function reconnect(d, tries = 6) {
+  if (reconnecting) return;
+  reconnecting = true;
+  for (let i = 0; i < tries && !chr; i++) {
+    try { await attach(d); break; }
+    catch (e) { setStatus('Ищу ленту… попытка ' + (i + 1) + ' из ' + tries, 'err'); await new Promise(r => setTimeout(r, 2000)); }
+  }
+  reconnecting = false;
+  if (!chr) setStatus('Лента не найдена. Закройте duoCo Strip и нажмите «Подключить ленту».', 'err');
+}
+
+// При открытии страницы: подключиться к последней ленте без выбора из списка.
+async function autoConnect() {
+  if (!navigator.bluetooth || !navigator.bluetooth.getDevices) return;
+  try {
+    const list = await navigator.bluetooth.getDevices();
+    let last = null; try { last = localStorage.getItem(KEY + '.last'); } catch (e) {}
+    const d = list.find(x => x.id === last) || list[0];
+    if (d) { setStatus('Ищу последнюю ленту…'); reconnect(d); }
+  } catch (e) {}
 }
 
 // ---------- Избранные цвета ----------
@@ -357,7 +391,7 @@ function stopMic() {
 }
 $('mic').onclick = () => micOn ? stopMic() : startMic();
 
-renderFav(); renderBands();
+renderFav(); renderBands(); autoConnect();
 </script>
 </body>
 </html>
